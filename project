@@ -327,6 +327,16 @@ function ManualSpam()
                             {closest_Entity.HumanoidRootPart.Position.X, closest_Entity.HumanoidRootPart.Position.Y},
                             false
                         )
+                        
+                        wait()
+                        
+                        originalParryRemote:FireServer(
+                            0,
+                            cf,
+                            {[closest_Entity.Name] = closest_Entity.HumanoidRootPart.Position},
+                            {closest_Entity.HumanoidRootPart.Position.X, closest_Entity.HumanoidRootPart.Position.Y},
+                            false
+                        )
                     end
                 end
             end)
