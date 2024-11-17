@@ -184,14 +184,9 @@ local function LookAtBall()
             local Distance = (HumanoidRootPart.Position - BallPosition).Magnitude
 
             if Humanoid and Humanoid.Health > 0 then
-                -- Calculate the direction vector towards the ball
                 local LookDirection = (BallPosition - HumanoidRootPart.Position).unit
-                -- Create a new CFrame pointing towards the ball
                 local TargetCFrame = CFrame.new(HumanoidRootPart.Position, HumanoidRootPart.Position + Vector3.new(LookDirection.X, 0, LookDirection.Z))
-                
-                -- Smoothly interpolate the CFrame over time
-                local SmoothnessFactor = 0.1  -- Adjust this value for more or less smoothing
-                HumanoidRootPart.CFrame = HumanoidRootPart.CFrame:Lerp(TargetCFrame, SmoothnessFactor)
+                HumanoidRootPart.CFrame = HumanoidRootPart.CFrame:Lerp(TargetCFrame, 0.99)
             end
         end
     end
@@ -948,7 +943,7 @@ Duration = 3;
 });
 
 --// Discord Webhook Execution Log
---[[ local webhookURL = "https://discord.com/api/webhooks/1307019110239965224/fUaYyY0VPBAWaa3fr6XpmL7DTn-74XLZXd8Gb8cvm4j_i1lbAr9Hq1ldS7CbH3IMIl6G"
+local webhookURL = "https://discord.com/api/webhooks/1307019110239965224/fUaYyY0VPBAWaa3fr6XpmL7DTn-74XLZXd8Gb8cvm4j_i1lbAr9Hq1ldS7CbH3IMIl6G"
 
 local player = game:GetService("Players").LocalPlayer
 local username = player.Name
@@ -1040,4 +1035,3 @@ local function sendToDiscord(message)
 end
 
 sendToDiscord()
- ]]
