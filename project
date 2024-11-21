@@ -41,6 +41,7 @@ local training_mode = false
 local anti_curve_spam_Enabled = false
 local visualize_Enabled = false
 local ai_Enabled = false
+local ai_Mode = "Passive"
 local auto_win = false
 local tp_hit = false
 local potanum = 15
@@ -50,6 +51,7 @@ getgenv().upwards = false
 getgenv().random = false
 
 getgenv().LookAtBall = false
+getgenv().LookAtBall_Mode = "Character"
 
 local Services = {game:GetService("AdService"),game:GetService("SocialService")}
 
@@ -167,37 +169,57 @@ end)
 
 local function LookAtBall()
     local LocalPlayer = game.Players.LocalPlayer
+    local Camera = workspace.CurrentCamera
     local Character
     local HumanoidRootPart
     local Humanoid
-    
+
     local function GetCharacter()
         Character = LocalPlayer.Character
         HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
         Humanoid = Character and Character:FindFirstChild("Humanoid")
     end
 
-    local function UpdateLookAt()
-        local ClosestBall = Nurysium_Util.getBall() 
-        if ClosestBall then
-            local BallPosition = ClosestBall.Position
-            local Distance = (HumanoidRootPart.Position - BallPosition).Magnitude
+    local function UpdateCameraLookAt()
+        if LookAtBall_Mode == "Camera" then
+            local ClosestBall = Nurysium_Util.getBall()
+            if ClosestBall then
+                local BallPosition = ClosestBall.Position
+                local LookAtPosition = BallPosition + Vector3.new(0, -20, 0)
+                
+                local LookDirection = (LookAtPosition - Camera.CFrame.Position).unit
+                local TargetCFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + LookDirection)
+                Camera.CFrame = Camera.CFrame:Lerp(TargetCFrame, 0.88)
+            end
+        end
+    end
 
-            if Humanoid and Humanoid.Health > 0 then
+    local function UpdateCharacterLookAt()
+        if LookAtBall_Mode == "Character" then
+            local ClosestBall = Nurysium_Util.getBall()
+            if ClosestBall and Humanoid and Humanoid.Health > 0 then
+                local BallPosition = ClosestBall.Position
                 local LookDirection = (BallPosition - HumanoidRootPart.Position).unit
                 local TargetCFrame = CFrame.new(HumanoidRootPart.Position, HumanoidRootPart.Position + Vector3.new(LookDirection.X, 0, LookDirection.Z))
-                HumanoidRootPart.CFrame = HumanoidRootPart.CFrame:Lerp(TargetCFrame, 0.99)
+                HumanoidRootPart.CFrame = TargetCFrame
             end
+            Camera.CameraType = Enum.CameraType.Custom 
         end
     end
 
     local Connection
     Connection = game:GetService("RunService").Heartbeat:Connect(function()
-        GetCharacter()
-        if getgenv().LookAtBall then
-            UpdateLookAt()
-        else
+        if not getgenv().LookAtBall then
             Connection:Disconnect()
+            return
+        end
+
+        GetCharacter()
+
+        if LookAtBall_Mode == "Camera" then
+            UpdateCameraLookAt()
+        elseif LookAtBall_Mode == "Character" then
+            UpdateCharacterLookAt()
         end
     end)
 end
@@ -312,27 +334,26 @@ function ManualSpam()
 
             parryConnection = game:GetService("RunService").RenderStepped:Connect(function()
                 if togglemanualspam and originalParryRemote then
-                    local closest_Entity = getClosestEntity()
-                    if closest_Entity then
-                        local cf = camera.CFrame
-                        originalParryRemote:FireServer(
-                            0,
-                            cf,
-                            {[closest_Entity.Name] = closest_Entity.HumanoidRootPart.Position},
-                            {closest_Entity.HumanoidRootPart.Position.X, closest_Entity.HumanoidRootPart.Position.Y},
-                            false
-                        )
-                        
-                        wait()
-                        
-                        originalParryRemote:FireServer(
-                            0,
-                            cf,
-                            {[closest_Entity.Name] = closest_Entity.HumanoidRootPart.Position},
-                            {closest_Entity.HumanoidRootPart.Position.X, closest_Entity.HumanoidRootPart.Position.Y},
-                            false
-                        )
-                    end
+                  local cf = camera.CFrame
+                    local x, y, z, R00, R01, R02, R10, R11, R12, R20, R21, R22 = cf:GetComponents()
+
+                	originalParryRemote:FireServer(
+                	  0,
+                	  CFrame.new(x, y, z, R00, R01, R02, R10, R11, R12, R20, R21, R22),
+                	  {[closest_Entity.Name] = closest_Entity.HumanoidRootPart.Position},
+                	  {closest_Entity.HumanoidRootPart.Position.X, closest_Entity.HumanoidRootPart.Position.Y},
+                  	false
+		           		)
+		           		
+		           		wait()
+
+	               originalParryRemote:FireServer(
+                	  0,
+                	  CFrame.new(x, y, z, R00, R01, R02, R10, R11, R12, R20, R21, R22),
+                	  {[closest_Entity.Name] = closest_Entity.HumanoidRootPart.Position},
+                	  {closest_Entity.HumanoidRootPart.Position.X, closest_Entity.HumanoidRootPart.Position.Y},
+                  	false
+		           		)
                 end
             end)
         else
@@ -457,12 +478,24 @@ task.defer(function()
         local hit, hitPosition = workspace:FindPartOnRay(ray, local_player.Character)
 
         if hit then
-            -- Wall detected, adjust path
-            local adjustedDir = (targetPos - hitPosition).Unit + Vector3.new(0, 0, 0.5) -- Simple adjustment
+            local adjustedDir = (targetPos - hitPosition).Unit + Vector3.new(0, 0, 0.5)
             return startPos + adjustedDir * 10
         end
 
         return targetPos
+    end
+
+    local jumpCooldown = 0 
+    local jumpInterval = 1
+    
+    local function TryJump()
+        if tick() - jumpCooldown >= jumpInterval then
+            jumpCooldown = tick()
+            
+            if math.random() < 0.2 and local_player.Character.Humanoid.FloorMaterial ~= Enum.Material.Air then
+                local_player.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end
     end
 
     aivar = runService.Heartbeat:Connect(function()
@@ -471,75 +504,38 @@ task.defer(function()
         end
 
         local self = Nurysium_Util.getBall()
-        if not self or not closest_Entity then
+        if not self then
             return
         end
 
-        local hrp = closest_Entity:FindFirstChild('HumanoidRootPart')
-        if not hrp then
-            walk_to(local_player.Character.HumanoidRootPart.Position + Vector3.new(math.sin(tick()) * math.random(35, 50), 0, math.cos(tick()) * math.random(35, 50)))
-            return
-        end
-
-        local tickNow = tick()
-        local tickMod = tickNow % 4
         local ball_Position = self.Position
-        local ball_Distance = local_player:DistanceFromCharacter(ball_Position)
         local player_Position = local_player.Character.PrimaryPart.Position
-        local target_Position = hrp.Position
-        local target_Distance = local_player:DistanceFromCharacter(target_Position)
-        local target_LookVector = hrp.CFrame.LookVector
+        local ball_Distance = local_player:DistanceFromCharacter(ball_Position)
+
         local resolved_Position = Vector3.zero
+        TryJump()
 
-        local target_Humanoid = closest_Entity:FindFirstChildOfClass("Humanoid")
-        if target_Humanoid and target_Humanoid:GetState() == Enum.HumanoidStateType.Jumping and local_player.Character.Humanoid.FloorMaterial ~= Enum.Material.Air then
-            local_player.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-        end
-
-        if (ball_Position - player_Position):Dot(local_player.Character.PrimaryPart.CFrame.LookVector) < -0.2 and tickMod <= 2 then
-            return
-        end
-
-        -- Maintain distance or get close depending on spamming state
-        if aura_table.is_Spamming then
-            -- When spamming, move closer to the target
-            if tickMod <= 2 then
-                resolved_Position = target_Position + (player_Position - target_Position).Unit * 8
+        if ai_Mode == "Aggressive" then
+            if ball_Distance < 8 then
+                resolved_Position = player_Position
             else
-                resolved_Position = target_Position - target_LookVector * (math.random(8.5, 13.5) + (ball_Distance / math.random(8, 20)))
+                resolved_Position = ball_Position + (player_Position - ball_Position).Unit * 8
             end
-        else
-            -- Avoid getting too close to other players when not spamming
-            for _, player in pairs(Players:GetPlayers()) do
-                if player ~= local_player and workspace.Alive:FindFirstChild(player.Name) then
-                    local otherPlayerPos = player.Character and player.Character.PrimaryPart.Position
-                    if otherPlayerPos and (player_Position - otherPlayerPos).Magnitude < 10 then
-                        local avoidanceVector = (player_Position - otherPlayerPos).Unit * 15
-                        player_Position = player_Position + avoidanceVector
-                    end
-                end
-            end
-
-            -- Regular pathfinding when not spamming
-            if tickMod <= 2 then
-                resolved_Position = target_Distance > 10 and target_Position + (player_Position - target_Position).Unit * 25
+        elseif ai_Mode == "Passive" then
+            if ball_Distance < 30 then
+                resolved_Position = player_Positionl
+            elseif ball_Distance < 35 then
+                resolved_Position = player_Position
             else
-                resolved_Position = target_Position - target_LookVector * (math.random(8.5, 13.5) + (ball_Distance / math.random(8, 20)))
+                resolved_Position = ball_Position
             end
         end
 
-        if (player_Position - target_Position).Magnitude < 8 then
-            resolved_Position = target_Position + (player_Position - target_Position).Unit * 35
-        end
-
-        if ball_Distance < 8 then
-            resolved_Position = player_Position + (player_Position - ball_Position).Unit * 10
-        end
-
-        -- Avoid walls before walking
         resolved_Position = avoidWalls(player_Position, resolved_Position)
 
-        walk_to(resolved_Position + Vector3.new(math.sin(tickNow) * 10, 0, math.cos(tickNow) * 10))
+        if ball_Distance >= 30 or (ai_Mode == "Aggressive" and ball_Distance >= 10) then
+            walk_to(resolved_Position + Vector3.new(math.sin(tick()) * 10, 0, math.cos(tick()) * 10))
+        end
     end)
 end)
 
@@ -565,6 +561,7 @@ task.defer(function()
 			player.HumanoidRootPart.CFrame = CFrame.new(target_Position, ball_Position)
 		end
 	end)
+	
 	tphitvar = RunService.Heartbeat:Connect(function()
         	local self = Nurysium_Util.getBall()
 	if not self or not tp_hit then return end
@@ -618,12 +615,47 @@ task.spawn(function()
                 local fireArgs = {
                     {[closest_Entity_To_mouse.Name] = targetPosition},
                     {targetPosition.X, targetPosition.Y}
-                }
+                } 
+              
+              local function AutoSpamFunc()
+                  local camera = game.Workspace.CurrentCamera
+                  local cf = camera.CFrame
+                  local x, y, z, R00, R01, R02, R10, R11, R12, R20, R21, R22 = cf:GetComponents()
+                  local Players = game:GetService("Players")
+                  local local_player = Players.LocalPlayer
+
+                  local screen = camera:WorldToScreenPoint(local_player.Character.HumanoidRootPart.Position)
+                  local tbl = {}
+
+                  for index, local_player in pairs(Players:GetPlayers()) do
+                      local humanoidRootPart = local_player.Character and local_player.Character:FindFirstChild("HumanoidRootPart")
+                      if humanoidRootPart then
+                          tbl[tostring(local_player.Name)] = camera:WorldToScreenPoint(humanoidRootPart.Position)
+                      end
+                  end
+
+                  local args = {
+                      0,
+                      CFrame.new(x, y, z, R00, R01, R02, R10, R11, R12, R20, R21, R22),
+                      tbl,
+                      {
+                          screen.X,
+                          screen.Y
+                      },
+                      false
+                  }
+
+                  getgenv().originalParryRemote = originalParryRemote
+                  
+                  originalParryRemote:FireServer(unpack(args))
+                  wait()
+                  originalParryRemote:FireServer(unpack(args))
+              end
 
                 task.defer(function()
-                        for count = 1, potanum do
+                        for count = 1, potanum do 
                             if auto_spam then
-                                originalParryRemote:FireServer(0, CFrame.new(cf.Position, randomTarget), unpack(fireArgs)) 
+                              AutoSpamFunc()
                             end
                       end
 
@@ -696,7 +728,6 @@ autoparryvar = RunService.Heartbeat:Connect(function()
     local ball_Dot = ball_Direction:Dot(ball_Velocity.Unit)
     local ball_Speed = ball_Velocity.Magnitude
 
-    -- Anti-curve mechanism: Adjust for curving velocity
     if ball_Speed < 25 or ball_Velocity.Y > 10 then
         aura_table.hit_Time = tick() * 10
         aura_table.hit_Count = 0
@@ -762,7 +793,7 @@ if auto_curve then
     if straight then 
               originalParryRemote:FireServer(
                 0, 
-                CFrame.lookAt(cf.Position, cf.Position + Vector3.new(0, -1, 0)), 
+                CFrame.lookAt(cf.Position, cf.Position + Vector3.new(0, 0, 0)), 
                 {[closest_Entity_To_mouse.Name] = targetPosition}, 
                 {target_X, target_Y}, 
                 false
@@ -816,29 +847,26 @@ end
         aura_table.canParry = true
     end)
 end)
--- Define a safe disconnect function to avoid errors
+
 local function safeDisconnect(connection)
     if connection and connection.Disconnect then
         connection:Disconnect()
     end
 end
 
--- Function to manage connections
 local function manageConnection(flag, varName, runServiceFunc)
     if flag then
         if not _G[varName] then
             _G[varName] = RunService[runServiceFunc]:Connect(function()
-                -- Your code for what the connection does
             end)
         end
     else
-        -- Disconnect and clear the connection if the flag is false
+
         safeDisconnect(_G[varName])
         _G[varName] = nil
     end
 end
 
--- Main loop running on Heartbeat
 RunService.Heartbeat:Connect(function()
     manageConnection(visualize_Enabled, "visualizervar", "Heartbeat")
     manageConnection(auto_spam, "autospamvar", "Heartbeat")
@@ -861,10 +889,25 @@ Toggle:OnChanged(function(v)
     end
 end)
 
+local Toggle = Tabs.Main:AddToggle("MyToggle", {Title = "LookAt Ball", Default = false })
+
+Toggle:OnChanged(function(v)
+    getgenv().LookAtBall = v
+     if v then 
+       LookAtBall()
+     end
+end)
+
 local Toggle = Tabs.Main:AddToggle("MyToggle", {Title = "Auto Curve", Default = false })
 
 Toggle:OnChanged(function(v)
     auto_curve = v
+end)
+
+local Toggle = Tabs.Main:AddToggle("MyToggle", {Title = "AI Play", Default = false })
+
+Toggle:OnChanged(function(v)
+    ai_Enabled = v
 end)
 
 local Dropdown = Tabs.Main:AddDropdown("Dropdown", {
@@ -895,19 +938,54 @@ Dropdown:OnChanged(function(v)
     end
 end)
 
+local Dropdown = Tabs.Main:AddDropdown("Dropdown", {
+    Title = "AI Mode",
+    Values = {"Passive", "Aggressive"},
+    Multi = false,
+    Default = "Passive",
+})
+
+Dropdown:OnChanged(function(v)
+  if v == "Passive" and ai_Enabled then 
+    ai_Mode = "Passive"
+  elseif v == "Aggressive" then
+    ai_Mode = "Aggressive"
+  end
+end)
+
+local Dropdown = Tabs.Main:AddDropdown("Dropdown", {
+    Title = "LookAtBall Mode",
+    Values = {"Character", "Camera"},
+    Multi = false,
+    Default = "Character",
+})
+
+Dropdown:OnChanged(function(v)
+  if v == "Character" then
+    LookAtBall_Mode = "Character"
+    local Camera = workspace.CurrentCamera
+    Camera.CameraType = Enum.CameraType.Custom
+  elseif v == "Camera" then
+    LookAtBall_Mode = "Camera"
+  end
+end)
+
 local Toggle = Tabs.Main:AddToggle("MyToggle", {Title = "Visualize", Default = false })
 
 Toggle:OnChanged(function(v)
     visualize_Enabled = v
 end)
 
-local Toggle = Tabs.Main:AddToggle("MyToggle", {Title = "LookAt Ball", Default = false })
+local Toggle = Tabs.Main:AddToggle("MyToggle", {Title = "Auto Farm", Default = false })
 
 Toggle:OnChanged(function(v)
-    getgenv().LookAtBall = v
-     if v then 
-       LookAtBall()
-     end
+    auto_win = v
+end)
+
+local Toggle = Tabs.Main:AddToggle("MyToggle", {Title = "TP Hit Ball", Default = false })
+
+Toggle:OnChanged(function(v)
+    tp_hit = v
 end)
 
 local ScreenGui = Instance.new("ScreenGui")
